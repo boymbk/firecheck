@@ -171,7 +171,10 @@ function daysSince(d){ return Math.floor((Date.now() - new Date(d).getTime()) / 
 /* ---------------- FIRESTORE LISTENERS ---------------- */
 function initListeners(){
   db.collection('fire_tanks').onSnapshot(snap=>{
-    tanks = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    tanks = snap.docs.map(d=>{
+      const data = d.data();
+      return {id:d.id, ...data, number: Number(data.number != null ? data.number : d.id)};
+    });
     if(!tanksReady){
       tanksReady = true;
       if(tanks.length === 0){ seedTanks(); }
