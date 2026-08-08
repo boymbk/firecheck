@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบตรวจสอบอุปกรณ์ดับเพลิงประจำเดือน</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --bg:#F6F2EA; --surface:#FFFFFF; --ink:#241F1C; --ink-soft:#6B615A; --line:#E4DCD0;
+    --red:#C1272D; --red-deep:#8F1C21; --amber:#E8890C; --green:#2F9E44; --steel:#3A3531;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Sarabun',sans-serif;}
+  .num{font-family:'Oswald',sans-serif;}
+
+  header{background:var(--steel);color:#fff;padding:20px 24px;position:relative;overflow:hidden;}
+  header::after{content:"";position:absolute;right:-40px;top:-40px;width:160px;height:160px;border-radius:50%;border:14px solid rgba(193,39,45,.35);}
+  .header-inner{max-width:820px;margin:0 auto;display:flex;align-items:center;gap:14px;position:relative;z-index:1;}
+  .brand-mark{width:46px;height:46px;border-radius:9px;background:var(--red);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:22px;}
+  header h1{margin:0;font-size:18px;font-weight:700;}
+  header p{margin:3px 0 0;font-size:12.5px;color:#cfc9c4;}
+  .fire-stripe{height:7px;background:repeating-linear-gradient(135deg,var(--red) 0 12px,var(--steel) 12px 24px);}
+
+  main{max-width:820px;margin:0 auto;padding:26px 20px 60px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:22px;}
+
+  h2.section-title{font-size:16px;font-weight:700;margin:0 0 16px;display:flex;align-items:center;gap:8px;}
+  h2.section-title::before{content:"";width:5px;height:16px;background:var(--red);display:inline-block;border-radius:2px;}
+
+  .field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+  .field label{font-size:12.5px;font-weight:600;color:var(--ink-soft);}
+  .field input,.field textarea{font-family:'Sarabun',sans-serif;font-size:15px;padding:11px 13px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);}
+  .field input:focus,.field textarea:focus{outline:2px solid var(--red);outline-offset:-1px;}
+
+  button.primary{background:var(--red);color:#fff;border:none;padding:13px 20px;border-radius:8px;font-family:'Sarabun',sans-serif;font-weight:700;font-size:15px;cursor:pointer;width:100%;}
+  button.primary:hover{background:var(--red-deep);}
+  button.ghost{background:none;border:1px solid var(--line);padding:9px 15px;border-radius:8px;font-family:'Sarabun',sans-serif;font-size:13.5px;cursor:pointer;color:var(--ink-soft);}
+  button.ghost:hover{border-color:var(--ink);color:var(--ink);}
+  button:disabled{opacity:.5;cursor:not-allowed;}
+
+  .checklist-item{display:flex;align-items:flex-start;gap:12px;padding:14px 4px;border-bottom:1px solid var(--line);cursor:pointer;}
+  .checklist-item:last-child{border-bottom:none;}
+  .checklist-item input[type=checkbox]{width:22px;height:22px;margin-top:1px;accent-color:var(--red);flex-shrink:0;cursor:pointer;}
+  .checklist-item .ci-num{font-family:'Oswald',sans-serif;font-weight:600;color:var(--ink-soft);width:20px;flex-shrink:0;}
+  .checklist-item .ci-text{font-size:14.5px;line-height:1.4;}
+
+  .status-badge{display:inline-block;padding:4px 11px;border-radius:20px;font-size:12px;font-weight:700;}
+  .status-badge.ok{background:#e6f6ea;color:var(--green);}
+  .status-badge.due{background:#fff3e0;color:var(--amber);}
+  .status-badge.never{background:#fdecec;color:var(--red);}
+
+  .pin-wrap{max-width:340px;margin:40px auto;text-align:center;}
+  .pin-wrap h2{font-size:18px;margin-bottom:4px;}
+  .pin-wrap p{color:var(--ink-soft);font-size:13.5px;margin-top:0;margin-bottom:20px;}
+  .pin-input{font-family:'Oswald',sans-serif;font-size:26px;letter-spacing:8px;text-align:center;width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px;}
+  .pin-input:focus{outline:2px solid var(--red);border-color:var(--red);}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;padding:9px 10px;background:#FAF7F2;color:var(--ink-soft);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid var(--line);}
+  td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  tr.pt-row{cursor:pointer;}
+  tr.pt-row:hover td{background:#FAF7F2;}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 22px;border-radius:8px;font-size:14px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:100;opacity:0;pointer-events:none;transition:.25s;max-width:90vw;text-align:center;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
+
+  .modal-overlay{position:fixed;inset:0;background:rgba(20,20,20,.5);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;}
+  .modal-overlay.show{display:flex;}
+  .modal{background:#fff;border-radius:12px;padding:24px;max-width:480px;width:100%;max-height:85vh;overflow-y:auto;}
+  .modal h3{margin:0 0 16px;font-size:16px;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+
+  .success-wrap{text-align:center;padding:40px 10px;}
+  .success-wrap .check{font-size:52px;margin-bottom:10px;}
+
+  .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;}
+  .loading{padding:60px;text-align:center;color:var(--ink-soft);font-size:14px;}
+  .empty-state{text-align:center;padding:40px 20px;color:var(--ink-soft);}
+
+  .qr-print-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+  .qr-print-cell{text-align:center;border:1px dashed #999;padding:10px;border-radius:8px;page-break-inside:avoid;}
+  .qr-print-cell img{width:100%;max-width:130px;}
+  .qr-print-cell .lbl{font-family:'Oswald',sans-serif;font-weight:700;font-size:13px;margin-top:4px;}
+
+  .photo-upload{border:1.5px dashed var(--line);border-radius:9px;padding:14px;text-align:center;cursor:pointer;position:relative;transition:.15s;}
+  .photo-upload:hover{border-color:var(--red);background:#FFF8F5;}
+  .photo-upload input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;}
+  .photo-upload .ph-txt{font-size:12.5px;color:var(--ink-soft);}
+  .photo-preview-wrap{display:flex;align-items:center;gap:12px;}
+  .photo-preview-wrap img{width:64px;height:64px;border-radius:9px;object-fit:cover;border:1px solid var(--line);}
+  .thumb-lg{width:36px;height:36px;border-radius:7px;object-fit:cover;border:1px solid var(--line);cursor:pointer;}
+  .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;z-index:60;padding:24px;}
+  .lightbox.show{display:flex;}
+  .lightbox img{max-width:90vw;max-height:85vh;border-radius:10px;}
+
+  .view-toggle{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+  .view-toggle button{border:1px solid var(--line);background:#fff;padding:9px 16px;border-radius:20px;font-family:'Sarabun',sans-serif;font-size:13.5px;font-weight:600;cursor:pointer;color:var(--ink-soft);}
+  .view-toggle button.active{background:var(--red);color:#fff;border-color:var(--red);}
+  select.month-select{font-family:'Sarabun',sans-serif;font-size:13.5px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;}
+
+  .cat-chip-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+  .cat-chip{border:1.5px solid var(--line);background:#fff;padding:9px 14px;border-radius:20px;font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink-soft);white-space:nowrap;}
+  .cat-chip.active{background:var(--steel);color:#fff;border-color:var(--steel);}
+
+  .cat-badge{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-soft);background:#FAF7F2;border:1px solid var(--line);border-radius:20px;padding:5px 12px;margin-bottom:10px;}
+
+  .public-status-card{border-left:4px solid var(--line);}
+  .public-status-card.ok{border-left-color:var(--green);}
+  .public-status-card.due{border-left-color:var(--amber);}
+  .public-status-card.never{border-left-color:var(--red);}
+
+  @media print{
+    header,.fire-stripe,.no-print{display:none !important;}
+    body{background:#fff;}
+    table{font-size:11px;}
+    th{background:#eee !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand-mark">🧯</div>
+    <div>
+      <h1>ระบบตรวจสอบอุปกรณ์ดับเพลิงประจำเดือน</h1>
+      <p>สแกน QR ที่จุดติดตั้ง เพื่อดูสถานะหรือบันทึกผลการตรวจ</p>
+    </div>
+  </div>
+</header>
+<div class="fire-stripe"></div>
+
+<main id="mainContent"><div class="loading">กำลังโหลด...</div></main>
+
+<div class="modal-overlay" id="modalOverlay"><div class="modal" id="modalBody"></div></div>
+<div class="lightbox" id="lightbox"><img id="lightboxImg" src=""></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------------- FIREBASE CONFIG (โปรเจกต์เดียวกับ stockweb) ---------------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyB-f127T1LX5800MoavLGPUW6lw9qAHq-0",
+  authDomain: "stockweb-bcd85.firebaseapp.com",
+  projectId: "stockweb-bcd85",
+  storageBucket: "stockweb-bcd85.firebasestorage.app",
+  messagingSenderId: "586543641375",
+  appId: "1:586543641375:web:6d41d4e2b5a0244db6762a"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+const ACCESS_PIN = '25362536';
+const DEFAULT_INSPECTOR = 'ธนวัฒน์';
+
+/* ---------------- CATEGORY CONFIG ---------------- */
+const CATEGORIES = {
+  extinguisher: { label:'ถังดับเพลิง', icon:'🧯', count:60, items:[
+    { key:'gauge', text:'ดูที่เข็มในมาตรวัด (Pressure Gauge)' },
+    { key:'hose', text:'ตรวจสายฉีด หัวฉีด' },
+    { key:'body', text:'ตรวจสภาพบรรจุของถังดับเพลิง' },
+    { key:'lever', text:'ตรวจสอบคันบีบ' },
+    { key:'seal', text:'สลักถังดับเพลิงและซีลล็อก' }
+  ]},
+  pump: { label:'ระบบปั๊มน้ำดับเพลิง', icon:'🚰', count:1, items:[
+    { key:'pump_condition', text:'สภาพของปั๊มน้ำ (Pump Condition)' },
+    { key:'motor', text:'มอเตอร์หรือเครื่องยนต์ขับเคลื่อน (Motor/Engine)' },
+    { key:'pressure', text:'ระบบแรงดันน้ำ (Pressure System)' },
+    { key:'valve', text:'ระบบวาล์วและท่อส่งน้ำ (Valves & Pipelines)' },
+    { key:'control', text:'ระบบควบคุม (Alarm & Control Panel)' }
+  ]},
+  alarm: { label:'สัญญาณเตือนภัย', icon:'🔔', count:20, items:[
+    { key:'sound', text:'ระบบสัญญาณเตือนภัย ดังหรือไม่' }
+  ]},
+  hose: { label:'สายฉีดน้ำดับเพลิง + หัวฉีด', icon:'🚒', count:10, items:[
+    { key:'ready', text:'พร้อมใช้งานหรือไม่' }
+  ]},
+  elight: { label:'ไฟฉุกเฉิน', icon:'💡', count:40, items:[
+    { key:'ready', text:'พร้อมใช้งานหรือไม่' }
+  ]},
+  exitdoor: { label:'ประตูหนีไฟ', icon:'🚪', count:10, items:[
+    { key:'ready', text:'พร้อมใช้งานหรือไม่' }
+  ]},
+  exitsign: { label:'ป้ายทางหนีไฟ', icon:'🪧', count:20, items:[
+    { key:'ready', text:'พร้อมใช้งานหรือไม่' }
+  ]}
+};
+const CAT_KEYS = Object.keys(CATEGORIES);
+
+const urlParams = new URLSearchParams(location.search);
+let viewCategory = urlParams.get('cat');
+let viewPoint = urlParams.get('point') ? parseInt(urlParams.get('point')) : null;
+// รองรับลิงก์เก่า ?tank=N (ก่อนมีหลายหมวด) ให้ยังใช้งานได้
+if(!viewCategory && urlParams.get('tank')){
+  viewCategory = 'extinguisher';
+  viewPoint = parseInt(urlParams.get('tank'));
+}
+const isPointView = viewCategory && CATEGORIES[viewCategory] && viewPoint;
+
+let points = [];
+let records = [];
+let pointsReady = false;
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2400);
+}
+function closeModal(){
+  document.getElementById('modalOverlay').classList.remove('show');
+  document.getElementById('modalBody').innerHTML = '';
+}
+function openModal(html){
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('show');
+}
+document.getElementById('modalOverlay').addEventListener('click', e=>{ if(e.target.id==='modalOverlay') closeModal(); });
+function openLightbox(src){
+  document.getElementById('lightboxImg').src = src;
+  document.getElementById('lightbox').classList.add('show');
+}
+document.getElementById('lightbox').addEventListener('click', ()=>{ document.getElementById('lightbox').classList.remove('show'); });
+function fmtDate(d){
+  return new Date(d).toLocaleString('th-TH', {day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit'});
+}
+function monthKey(d){ const dt=new Date(d); return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`; }
+function daysSince(d){ return Math.floor((Date.now() - new Date(d).getTime()) / 86400000); }
+
+/* ---------------- CSV EXPORT ---------------- */
+function toCSV(rows){
+  return rows.map(r=>r.map(cell=>{
+    const s = String(cell==null?'':cell);
+    return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+  }).join(',')).join('\r\n');
+}
+function downloadCSV(filename, rows){
+  const csv = '\uFEFF' + toCSV(rows);
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function exportMonthlyCSV(){
+  const cfg = CATEGORIES[adminCategory];
+  const monthRecords = records.filter(r=>r.category===adminCategory && monthKey(r.date)===reportMonth).sort((a,b)=>a.point_number-b.point_number);
+  const header = ['จุดที่','ชื่อจุด','วันเวลาที่ตรวจ','ผู้ตรวจ', ...cfg.items.map(c=>c.text), 'หมายเหตุ'];
+  const rows = [header];
+  monthRecords.forEach(r=>{
+    const point = points.find(p=>p.category===adminCategory && p.number===r.point_number);
+    rows.push([r.point_number, point?point.name:'', fmtDate(r.date), r.inspector, ...cfg.items.map(c=>r.checklist&&r.checklist[c.key]?'ผ่าน':'ไม่ผ่าน'), r.note||'']);
+  });
+  downloadCSV(`${cfg.label}_${reportMonth}.csv`, rows);
+}
+function exportAllCSV(){
+  const header = ['หมวด','จุดที่','ชื่อจุด','วันเวลาที่ตรวจ','ผู้ตรวจ','ผลตรวจ','หมายเหตุ'];
+  const rows = [header];
+  records.slice().sort((a,b)=>new Date(b.date)-new Date(a.date)).forEach(r=>{
+    const cfg = CATEGORIES[r.category];
+    if(!cfg) return;
+    const point = points.find(p=>p.category===r.category && p.number===r.point_number);
+    const result = cfg.items.map(c=>`${c.text}:${r.checklist&&r.checklist[c.key]?'ผ่าน':'ไม่ผ่าน'}`).join(' / ');
+    rows.push([cfg.label, r.point_number, point?point.name:'', fmtDate(r.date), r.inspector, result, r.note||'']);
+  });
+  downloadCSV(`ประวัติการตรวจทั้งหมด_${new Date().toISOString().slice(0,10)}.csv`, rows);
+}
+
+function fileToCompressedDataURL(file, maxWidth=640, quality=0.7){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxWidth / img.width);
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+function photoUploadHTML(){
+  return `<label class="photo-upload">
+    <input type="file" accept="image/*" id="f_photo_input">
+    <div class="ph-txt">📷 แตะเพื่อแนบรูป (ถ้ามี)</div>
+  </label>`;
+}
+function photoPreviewHTML(dataUrl){
+  return `<div class="photo-preview-wrap">
+    <img src="${dataUrl}">
+    <div><button type="button" class="ghost" id="f_photo_remove" style="font-size:12.5px;padding:6px 12px;">ลบรูป / เปลี่ยนรูป</button></div>
+  </div>`;
+}
+
+/* ---------------- FIRESTORE LISTENERS ---------------- */
+function initListeners(){
+  db.collection('fire_tanks').onSnapshot(snap=>{
+    points = snap.docs.map(d=>{
+      const data = d.data();
+      return { id:d.id, ...data,
+        category: data.category || 'extinguisher',
+        number: Number(data.number != null ? data.number : d.id) };
+    });
+    if(!pointsReady){ pointsReady = true; seedMissingCategories(); }
+    render();
+  }, err=>{
+    console.error(err);
+    document.getElementById('mainContent').innerHTML = '<div class="loading" style="color:var(--red);">⚠️ เชื่อมต่อฐานข้อมูลไม่สำเร็จ ตรวจสอบการตั้งค่า Firestore</div>';
+  });
+  db.collection('fire_inspections').onSnapshot(snap=>{
+    records = snap.docs.map(d=>{
+      const data = d.data();
+      return { id:d.id, ...data,
+        category: data.category || 'extinguisher',
+        point_number: data.point_number != null ? data.point_number : data.tank_number };
+    });
+    render();
+  }, err=>console.error(err));
+}
+async function seedMissingCategories(){
+  const existingCats = new Set(points.map(p=>p.category));
+  const batch = db.batch();
+  let any = false;
+  CAT_KEYS.forEach(key=>{
+    if(existingCats.has(key)) return;
+    any = true;
+    const cfg = CATEGORIES[key];
+    for(let n=1; n<=cfg.count; n++){
+      const docId = key==='extinguisher' ? String(n) : `${key}_${n}`;
+      batch.set(db.collection('fire_tanks').doc(docId), { category:key, number:n, name:`${cfg.label} จุดที่ ${n}`, location:'' });
+    }
+  });
+  if(any) await batch.commit();
+}
+function pointsOf(cat){ return points.filter(p=>p.category===cat).sort((a,b)=>a.number-b.number); }
+function lastRecordOf(cat, num){
+  const list = records.filter(r=>r.category===cat && r.point_number===num).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  return list[0] || null;
+}
+function pointStatus(cat, num){
+  const last = lastRecordOf(cat, num);
+  if(!last) return 'never';
+  return daysSince(last.date) > 35 ? 'due' : 'ok';
+}
+
+/* ---------------- PIN GATE (ใช้สำหรับ "ทำการตรวจ" และหน้าแอดมิน) ---------------- */
+function renderPinPrompt(container, onSuccess, onCancel){
+  container.innerHTML = `
+    <div class="pin-wrap" style="margin:20px auto;">
+      <h2>🔒 ยืนยันตัวตนก่อนตรวจ</h2>
+      <p>กรอกรหัสผ่านเพื่อบันทึกผลการตรวจ</p>
+      <input type="password" inputmode="numeric" class="pin-input" id="pinInput" placeholder="••••••••" maxlength="12" autofocus>
+      <button class="primary" id="pinSubmit" style="margin-top:14px;">เข้าสู่ระบบ</button>
+      ${onCancel ? `<button class="ghost" id="pinCancelBtn" style="margin-top:10px;width:100%;">ยกเลิก</button>` : ''}
+    </div>`;
+  const submit = ()=>{
+    const val = document.getElementById('pinInput').value;
+    if(val === ACCESS_PIN){ onSuccess(); }
+    else{ showToast('รหัสผ่านไม่ถูกต้อง'); }
+  };
+  document.getElementById('pinSubmit').addEventListener('click', submit);
+  document.getElementById('pinInput').addEventListener('keydown', e=>{ if(e.key==='Enter') submit(); });
+  if(onCancel) document.getElementById('pinCancelBtn').addEventListener('click', onCancel);
+}
+
+/* ---------------- POINT VIEW (สแกน QR จากอุปกรณ์จริง) — ดูได้โดยไม่ต้องใส่รหัส ---------------- */
+let pointFormActive = false;
+let pointInspectPhoto = null;
+function renderPointView(){
+  const cfg = CATEGORIES[viewCategory];
+  const point = points.find(p=>p.category===viewCategory && p.number===viewPoint);
+  const main = document.getElementById('mainContent');
+  if(!point){
+    main.innerHTML = `<div class="card"><div class="empty-state">ไม่พบจุดตรวจนี้ในระบบ</div></div>`;
+    return;
+  }
+  const last = lastRecordOf(viewCategory, viewPoint);
+  const st = pointStatus(viewCategory, viewPoint);
+  const stLabel = st==='ok' ? 'ปกติ' : st==='due' ? 'เกินกำหนดตรวจ' : 'ยังไม่เคยตรวจ';
+
+  main.innerHTML = `
+    <div class="cat-badge">${cfg.icon} ${cfg.label}</div>
+    <div class="card public-status-card ${st}" style="margin-bottom:16px;">
+      <h2 class="section-title">${point.name}</h2>
+      ${point.location ? `<div style="font-size:13.5px;color:var(--ink-soft);margin-bottom:8px;">📍 ${point.location}</div>` : ''}
+      <span class="status-badge ${st}">${stLabel}</span>
+      <div style="margin-top:12px;font-size:13.5px;">
+        ${last ? `
+          <div><strong>ตรวจล่าสุด:</strong> ${fmtDate(last.date)} โดย ${last.inspector} (${daysSince(last.date)} วันที่แล้ว)</div>
+          <div style="margin-top:6px;">${cfg.items.map(c=>`${last.checklist && last.checklist[c.key] ? '✅' : '❌'} ${c.text}`).join('<br>')}</div>
+          ${last.note ? `<div style="color:var(--red);margin-top:6px;">⚠ ${last.note}</div>` : ''}
+          ${last.photo ? `<img src="${last.photo}" class="thumb-lg" id="lastPhotoView" style="cursor:pointer;margin-top:8px;width:64px;height:64px;">` : ''}
+        ` : `<div style="color:var(--ink-soft);">ยังไม่เคยมีการตรวจจุดนี้มาก่อน</div>`}
+      </div>
+    </div>
+    <div id="pointActionArea"></div>`;
+
+  if(last && last.photo){
+    document.getElementById('lastPhotoView').addEventListener('click', ()=>openLightbox(last.photo));
+  }
+
+  const actionArea = document.getElementById('pointActionArea');
+  actionArea.innerHTML = `<button class="primary" id="startInspectBtn">🔒 ทำการตรวจตอนนี้</button>`;
+  document.getElementById('startInspectBtn').addEventListener('click', ()=>{
+    renderPinPrompt(actionArea, ()=>{
+      pointFormActive = true;
+      pointInspectPhoto = null;
+      renderPointInspectForm();
+    }, ()=>{ renderPointView(); });
+  });
+}
+
+function renderPointInspectForm(){
+  const cfg = CATEGORIES[viewCategory];
+  const point = points.find(p=>p.category===viewCategory && p.number===viewPoint);
+  const main = document.getElementById('mainContent');
+  main.innerHTML = `
+    <div class="cat-badge">${cfg.icon} ${cfg.label}</div>
+    <div class="card">
+      <h2 class="section-title">ตรวจ ${point.name} — ${fmtDate(new Date())}</h2>
+      <div class="field"><label>ชื่อผู้ตรวจ</label><input id="inspector_name" value="${DEFAULT_INSPECTOR}"></div>
+      <div style="margin:14px 0;">
+        ${cfg.items.map((c,idx)=>`
+          <label class="checklist-item">
+            <input type="checkbox" data-check="${c.key}">
+            <span class="ci-num">${idx+1}.</span>
+            <span class="ci-text">${c.text}</span>
+          </label>`).join('')}
+      </div>
+      <div class="field"><label>รูปภาพ (ถ้ามี)</label><div id="inspectPhotoArea">${photoUploadHTML()}</div></div>
+      <div class="field"><label>หมายเหตุ (ถ้าพบสิ่งผิดปกติ)</label><textarea id="inspect_note" rows="2" placeholder="ระบุปัญหาที่พบ (ถ้ามี)"></textarea></div>
+      <button class="primary" id="submitInspection">✅ บันทึกผลการตรวจ</button>
+      <button class="ghost" id="cancelInspection" style="width:100%;margin-top:8px;">ยกเลิก</button>
+    </div>`;
+
+  function bindPhotoInput(){
+    const fileInput = document.getElementById('f_photo_input');
+    if(fileInput){
+      fileInput.addEventListener('change', async e=>{
+        const file = e.target.files[0];
+        if(!file) return;
+        try{
+          pointInspectPhoto = await fileToCompressedDataURL(file);
+          document.getElementById('inspectPhotoArea').innerHTML = photoPreviewHTML(pointInspectPhoto);
+          bindPhotoInput();
+        }catch(err){ showToast('อ่านรูปไม่สำเร็จ'); }
+      });
+    }
+    const removeBtn = document.getElementById('f_photo_remove');
+    if(removeBtn){
+      removeBtn.addEventListener('click', ()=>{
+        pointInspectPhoto = null;
+        document.getElementById('inspectPhotoArea').innerHTML = photoUploadHTML();
+        bindPhotoInput();
+      });
+    }
+  }
+  bindPhotoInput();
+
+  document.getElementById('cancelInspection').addEventListener('click', ()=>{
+    pointFormActive = false;
+    renderPointView();
+  });
+  document.getElementById('submitInspection').addEventListener('click', async ()=>{
+    const inspector = document.getElementById('inspector_name').value.trim();
+    if(!inspector){ showToast('กรุณาระบุชื่อผู้ตรวจ'); return; }
+    const checklist = {};
+    let allChecked = true;
+    cfg.items.forEach(c=>{
+      const checked = document.querySelector(`[data-check="${c.key}"]`).checked;
+      checklist[c.key] = checked;
+      if(!checked) allChecked = false;
+    });
+    if(!allChecked){ showToast(`กรุณาติ๊กตรวจครบทั้ง ${cfg.items.length} รายการ`); return; }
+    const note = document.getElementById('inspect_note').value.trim();
+    try{
+      await db.collection('fire_inspections').add({
+        category: viewCategory, point_number: viewPoint, date: new Date().toISOString(),
+        inspector, checklist, note, photo: pointInspectPhoto
+      });
+      pointFormActive = false;
+      renderPointInspectSuccess(point);
+    }catch(e){ showToast('บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง'); }
+  });
+}
+function renderPointInspectSuccess(point){
+  document.getElementById('mainContent').innerHTML = `
+    <div class="card success-wrap">
+      <div class="check">✅</div>
+      <h2 style="margin:0 0 6px;">บันทึกผลการตรวจแล้ว</h2>
+      <p style="color:var(--ink-soft);">${point.name}<br>${fmtDate(new Date())}</p>
+      <button class="ghost" id="backToStatus" style="margin-top:10px;">🔙 กลับไปดูสถานะ</button>
+    </div>`;
+  document.getElementById('backToStatus').addEventListener('click', ()=>renderPointView());
+}
+
+/* ---------------- ADMIN DASHBOARD (ไม่มี ?cat&point ในลิงก์ — ต้องใส่รหัสก่อนเห็นข้อมูล) ---------------- */
+let adminPinOk = false;
+let adminCategory = 'extinguisher';
+let adminView = 'points';
+let reportMonth = monthKey(new Date());
+let pointSearchQuery = '';
+
+function renderAdminDashboard(){
+  const main = document.getElementById('mainContent');
+  if(!adminPinOk){
+    renderPinPrompt(main, ()=>{ adminPinOk = true; renderAdminDashboard(); }, null);
+    return;
+  }
+  main.innerHTML = `
+    <div class="toolbar no-print">
+      <div class="cat-chip-row" id="catChipRow" style="margin-bottom:0;">
+        ${CAT_KEYS.map(k=>`<button class="cat-chip ${k===adminCategory?'active':''}" data-cat="${k}">${CATEGORIES[k].icon} ${CATEGORIES[k].label}</button>`).join('')}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="ghost" id="exportAllBtn">📥 Export ข้อมูลทั้งหมด (CSV)</button>
+        <button class="ghost" id="printAllQrBtn">🖨 พิมพ์ QR ทั้งหมดทุกหมวด (${points.length || CAT_KEYS.reduce((s,k)=>s+CATEGORIES[k].count,0)} จุด)</button>
+      </div>
+    </div>
+    <div class="view-toggle no-print">
+      <button id="viewPointsBtn" class="${adminView==='points'?'active':''}">📋 รายการจุดตรวจ</button>
+      <button id="viewReportBtn" class="${adminView==='report'?'active':''}">🗓 สรุปประจำเดือน</button>
+    </div>
+    <div id="adminViewContent"></div>`;
+
+  document.querySelectorAll('[data-cat]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ adminCategory = btn.dataset.cat; pointSearchQuery=''; renderAdminDashboard(); });
+  });
+  document.getElementById('viewPointsBtn').addEventListener('click', ()=>{ adminView='points'; renderAdminDashboard(); });
+  document.getElementById('viewReportBtn').addEventListener('click', ()=>{ adminView='report'; renderAdminDashboard(); });
+  document.getElementById('printAllQrBtn').addEventListener('click', ()=>printQr(null));
+  document.getElementById('exportAllBtn').addEventListener('click', exportAllCSV);
+
+  if(adminView==='report'){ renderMonthlyReportView(); } else { renderPointListView(); }
+}
+
+function renderPointListView(){
+  const target = document.getElementById('adminViewContent');
+  const allList = pointsOf(adminCategory);
+  const q = pointSearchQuery.trim().toLowerCase();
+  const list = q ? allList.filter(p=>
+    p.name.toLowerCase().includes(q) ||
+    (p.location||'').toLowerCase().includes(q) ||
+    String(p.number).includes(q)
+  ) : allList;
+  const okCount = allList.filter(p=>pointStatus(p.category,p.number)==='ok').length;
+  const dueCount = allList.filter(p=>pointStatus(p.category,p.number)==='due').length;
+  const neverCount = allList.filter(p=>pointStatus(p.category,p.number)==='never').length;
+  target.innerHTML = `
+    <div class="toolbar">
+      <div style="font-size:13.5px;color:var(--ink-soft);">
+        <span class="status-badge ok">${okCount} ปกติ</span> &nbsp;
+        <span class="status-badge due">${dueCount} เกินกำหนด</span> &nbsp;
+        <span class="status-badge never">${neverCount} ยังไม่เคยตรวจ</span>
+      </div>
+      <button class="ghost" id="printCatQrBtn">🖨 พิมพ์ QR หมวดนี้ (${allList.length} จุด)</button>
+    </div>
+    <input type="text" id="pointSearchInput" placeholder="🔍 ค้นหาจากชื่อ / ตำแหน่ง / เลขที่..." value="${pointSearchQuery}" style="width:100%;padding:10px 13px;border:1px solid var(--line);border-radius:8px;font-family:'Sarabun',sans-serif;font-size:14px;margin-bottom:14px;">
+    <div class="card" style="padding:0;overflow-x:auto;">
+      <table>
+        <thead><tr><th>จุดที่</th><th>ชื่อ / ตำแหน่ง</th><th>ตรวจล่าสุด</th><th>สถานะ</th><th></th></tr></thead>
+        <tbody>
+        ${list.length===0 ? `<tr><td colspan="5" style="text-align:center;color:var(--ink-soft);padding:24px;">ไม่พบจุดตรวจที่ค้นหา</td></tr>` :
+        list.map(p=>{
+          const last = lastRecordOf(p.category, p.number);
+          const st = pointStatus(p.category, p.number);
+          const stLabel = st==='ok' ? 'ปกติ' : st==='due' ? 'เกินกำหนด' : 'ยังไม่เคยตรวจ';
+          return `<tr class="pt-row" data-cat="${p.category}" data-num="${p.number}">
+            <td class="num">${p.number}</td>
+            <td>${p.name}${p.location?` <span style="color:var(--ink-soft);">· ${p.location}</span>`:''}</td>
+            <td>${last ? fmtDate(last.date) : '-'}</td>
+            <td><span class="status-badge ${st}">${stLabel}</span></td>
+            <td><button class="ghost" data-edit-cat="${p.category}" data-edit-num="${p.number}" style="padding:5px 10px;font-size:12px;">แก้ไข</button></td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+
+  document.querySelectorAll('.pt-row').forEach(row=>{
+    row.addEventListener('click', e=>{
+      if(e.target.closest('[data-edit-cat]')) return;
+      openPointHistoryModal(row.dataset.cat, parseInt(row.dataset.num));
+    });
+  });
+  document.querySelectorAll('[data-edit-cat]').forEach(btn=>{
+    btn.addEventListener('click', e=>{ e.stopPropagation(); openEditPointModal(btn.dataset.editCat, parseInt(btn.dataset.editNum)); });
+  });
+  document.getElementById('printCatQrBtn').addEventListener('click', ()=>printQr(adminCategory));
+  const searchInput = document.getElementById('pointSearchInput');
+  searchInput.addEventListener('input', e=>{
+    pointSearchQuery = e.target.value;
+    const cursorPos = e.target.selectionStart;
+    renderPointListView();
+    const newInput = document.getElementById('pointSearchInput');
+    newInput.focus();
+    newInput.setSelectionRange(cursorPos, cursorPos);
+  });
+}
+
+function openEditPointModal(cat, num){
+  const point = points.find(p=>p.category===cat && p.number===num);
+  openModal(`
+    <h3>แก้ไข ${CATEGORIES[cat].label} จุดที่ ${num}</h3>
+    <div class="field"><label>ชื่อ / คำอธิบาย</label><input id="et_name" value="${point.name}"></div>
+    <div class="field"><label>ตำแหน่งที่ติดตั้ง</label><input id="et_location" value="${point.location||''}" placeholder="เช่น ชั้น 2 ใกล้บันไดหนีไฟ"></div>
+    <div class="modal-actions">
+      <button class="ghost" id="etCancel">ยกเลิก</button>
+      <button class="primary" style="width:auto;" id="etSave">บันทึก</button>
+    </div>`);
+  document.getElementById('etCancel').addEventListener('click', closeModal);
+  document.getElementById('etSave').addEventListener('click', async ()=>{
+    const name = document.getElementById('et_name').value.trim() || point.name;
+    const location = document.getElementById('et_location').value.trim();
+    try{
+      await db.collection('fire_tanks').doc(point.id).update({name, location});
+      closeModal();
+      showToast('บันทึกแล้ว');
+    }catch(e){ showToast('บันทึกไม่สำเร็จ'); }
+  });
+}
+
+function openPointHistoryModal(cat, num){
+  const point = points.find(p=>p.category===cat && p.number===num);
+  const cfg = CATEGORIES[cat];
+  const list = records.filter(r=>r.category===cat && r.point_number===num).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  openModal(`
+    <h3>ประวัติการตรวจ — ${point.name}</h3>
+    ${list.length===0 ? '<div class="empty-state">ยังไม่มีประวัติการตรวจ</div>' : list.map(r=>`
+      <div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:13.5px;">
+        ${r.photo ? `<img src="${r.photo}" class="thumb-lg" data-view-photo style="cursor:pointer;flex-shrink:0;">` : ''}
+        <div>
+          <strong>${fmtDate(r.date)}</strong> · ผู้ตรวจ: ${r.inspector}<br>
+          <span style="color:var(--ink-soft);">${cfg.items.map(c=>r.checklist && r.checklist[c.key] ? '✅' : '❌').join(' ')}</span>
+          ${r.note ? `<div style="color:var(--red);margin-top:3px;">⚠ ${r.note}</div>` : ''}
+        </div>
+      </div>`).join('')}
+    <div class="modal-actions"><button class="ghost" id="histClose">ปิด</button></div>`);
+  document.getElementById('histClose').addEventListener('click', closeModal);
+  document.querySelectorAll('[data-view-photo]').forEach(img=>{
+    img.addEventListener('click', ()=> openLightbox(img.src));
+  });
+}
+
+function renderMonthlyReportView(){
+  const target = document.getElementById('adminViewContent');
+  const cfg = CATEGORIES[adminCategory];
+  const list = pointsOf(adminCategory);
+  const monthRecords = records.filter(r=>r.category===adminCategory && monthKey(r.date)===reportMonth).sort((a,b)=>a.point_number-b.point_number || new Date(a.date)-new Date(b.date));
+  const inspectedNums = new Set(monthRecords.map(r=>r.point_number));
+  const notInspected = list.map(p=>p.number).filter(n=>!inspectedNums.has(n));
+  const [y,m] = reportMonth.split('-');
+  const monthLabel = new Date(Number(y), Number(m)-1, 1).toLocaleDateString('th-TH', {month:'long', year:'numeric'});
+
+  target.innerHTML = `
+    <div class="toolbar no-print">
+      <input type="month" class="month-select" id="monthPicker" value="${reportMonth}">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="ghost" id="exportMonthBtn">📥 Export เดือนนี้ (CSV)</button>
+        <button class="ghost" id="printReportBtn">🖨 พิมพ์สรุปประจำเดือน</button>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:16px;">
+      <h2 class="section-title" style="margin-bottom:6px;">สรุปการตรวจ ${cfg.label} ประจำเดือน ${monthLabel}</h2>
+      <div style="font-size:13.5px;color:var(--ink-soft);">
+        ตรวจแล้ว <strong style="color:var(--green);">${inspectedNums.size}</strong> / ${list.length} จุด
+        &nbsp;·&nbsp; ยังไม่ตรวจ <strong style="color:var(--red);">${notInspected.length}</strong> จุด
+        ${notInspected.length ? `<div style="margin-top:6px;">จุดที่ยังไม่ตรวจ: ${notInspected.join(', ')}</div>` : ''}
+      </div>
+    </div>
+    <div class="card" style="padding:0;overflow-x:auto;">
+      <table>
+        <thead><tr><th>จุดที่</th><th>วันเวลาที่ตรวจ</th><th>ผู้ตรวจ</th><th>ผลตรวจ</th><th>หมายเหตุ</th></tr></thead>
+        <tbody>
+        ${monthRecords.length===0 ? `<tr><td colspan="5" style="text-align:center;color:var(--ink-soft);padding:24px;">ยังไม่มีการตรวจในเดือนนี้</td></tr>` :
+          monthRecords.map(r=>`
+            <tr>
+              <td class="num">${r.point_number}</td>
+              <td>${fmtDate(r.date)}</td>
+              <td>${r.inspector}</td>
+              <td>${cfg.items.map(c=>r.checklist && r.checklist[c.key] ? '✅' : '❌').join(' ')}</td>
+              <td style="color:var(--red);">${r.note||'-'}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+
+  document.getElementById('monthPicker').addEventListener('change', e=>{ reportMonth = e.target.value; renderMonthlyReportView(); });
+  document.getElementById('exportMonthBtn').addEventListener('click', exportMonthlyCSV);
+  document.getElementById('printReportBtn').addEventListener('click', ()=>window.print());
+}
+
+/* ---------------- PRINT QR (หมวดเดียว หรือทั้งหมดทุกหมวด) ---------------- */
+function printQr(catKeyOrNull){
+  const baseUrl = location.origin + location.pathname;
+  const catList = catKeyOrNull ? [catKeyOrNull] : CAT_KEYS;
+  let cellsHtml = '';
+  let title = catKeyOrNull ? `QR ${CATEGORIES[catKeyOrNull].label}` : 'QR อุปกรณ์ดับเพลิงทั้งหมดทุกหมวด';
+  let total = 0;
+  catList.forEach(catKey=>{
+    const cfg = CATEGORIES[catKey];
+    total += cfg.count;
+    cellsHtml += `<h3 style="grid-column:1/-1;margin:18px 0 8px;">${cfg.icon} ${cfg.label} (${cfg.count} จุด)</h3>`;
+    for(let n=1; n<=cfg.count; n++){
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(baseUrl + '?cat=' + catKey + '&point=' + n)}`;
+      cellsHtml += `<div class="qr-print-cell"><img src="${qrUrl}"><div class="lbl">${cfg.label} ${n}</div></div>`;
+    }
+  });
+  const w = window.open('', '_blank');
+  w.document.write(`<html><head><title>${title}</title>
+    <style>
+      body{font-family:sans-serif;padding:20px;}
+      .qr-print-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;}
+      .qr-print-cell{text-align:center;border:1px dashed #999;padding:8px;border-radius:8px;page-break-inside:avoid;}
+      .qr-print-cell img{width:100%;max-width:110px;}
+      .qr-print-cell .lbl{font-weight:700;font-size:11px;margin-top:4px;}
+    </style></head><body>
+    <h2>${title} (${total} จุด)</h2>
+    <div class="qr-print-grid">${cellsHtml}</div>
+  </body></html>`);
+  w.document.close();
+  setTimeout(()=>w.print(), 500);
+}
+
+/* ---------------- MAIN RENDER ---------------- */
+function render(){
+  if(isPointView){
+    if(!pointFormActive){ renderPointView(); }
+    // ระหว่างกรอกฟอร์มตรวจ (pointFormActive=true) จะไม่ re-render ทับ เพื่อไม่ให้ข้อมูลที่กำลังกรอกหาย
+  } else {
+    renderAdminDashboard();
+  }
+}
+
+initListeners();
+</script>
+</body>
+</html>
